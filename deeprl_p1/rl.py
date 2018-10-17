@@ -51,7 +51,7 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
             # 即：P[s][a] = [(prob1, nextstate1, reward1, is_terminal1), (prob2, nextstate2, reward2, is_terminal2)]]
             # e.g. env.P[0][deeprl_p1.lake_envs.LEFT]表示在状态0，选择往左走, 我们得到返回值：[(1.0, 0, 0.0, False)]，
             # 数组里只有一组元素，说明对应的下一个状态，到达这个状态的概率是100%，这个状态是0，奖励R(0, LEFT) = 0，不是终结状态。
-            # ??? P[s][a] 什么时候初始化的？
+            # ??? 转移概率矩阵 P[s][a] 什么时候初始化的？
             # ？？？为什么 忽略掉 is_terminal == True
             for prob, nextstate, reward, is_terminal in env.P[s][a]:
                 #根据value function 计算公式，要把可能走的方向的值都累加起来
@@ -98,6 +98,7 @@ def value_function_to_policy(env, gamma, value_function):
             expected_value = 0.0
             for prob, nextstate, reward, is_terminal in env.P[s][a]:
                 if is_terminal:
+                    # ??? 为什么在Policy Improvement 伪代码里，没有乘以prob?
                     expected_value +=  prob * (reward + gamma * 0)
                 else:
                     expected_value +=  prob * (reward + gamma * value_function[nextstate])
@@ -108,7 +109,7 @@ def value_function_to_policy(env, gamma, value_function):
 
     return policy
 
-
+# polic: Maps states to actions.
 def improve_policy(env, gamma, value_func, policy):
     """Given a policy and value function improve the policy.
 
@@ -174,7 +175,10 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
        improvement iterations, and number of value iterations.
     """
     # nS: state number i.e. 16个 （0， 1， 2... 14, 15）
+    # 机器人如何根据状态选择一个动作? => 策略(Policy)
     policy = np.zeros(env.nS, dtype='int')
+    # 机器人如何衡量一个状态的好坏?=>数值(Value function)
+    # 初始化： 方格里面的值 也就是每个value function 都是0
     value_func = np.zeros(env.nS)
     improve_iteration = 0
     evalue_iteration = 0
