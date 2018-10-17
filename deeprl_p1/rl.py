@@ -42,10 +42,19 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
         iterations += 1
         delta = 0
         # iterate through each state
+        # from 0 to 15 overall 16 states
         for s in range(env.nS):
             a = policy[s]
             expected_value = 0.0
+            # ‘P’: Dynamics，是一个二维字典,第一维度是状态，第二维度是动作，值是对应状态和动作的能到达的下一个状态的四个属性
+            #(概率, 下一个状态, 奖励, 是否终结状态)，可以到达多个状态, 
+            # 即：P[s][a] = [(prob1, nextstate1, reward1, is_terminal1), (prob2, nextstate2, reward2, is_terminal2)]]
+            # e.g. env.P[0][deeprl_p1.lake_envs.LEFT]表示在状态0，选择往左走, 我们得到返回值：[(1.0, 0, 0.0, False)]，
+            # 数组里只有一组元素，说明对应的下一个状态，到达这个状态的概率是100%，这个状态是0，奖励R(0, LEFT) = 0，不是终结状态。
+            # ??? P[s][a] 什么时候初始化的？
+            # ？？？为什么 忽略掉 is_terminal == True
             for prob, nextstate, reward, is_terminal in env.P[s][a]:
+                #根据value function 计算公式，要把可能走的方向的值都累加起来
                 if is_terminal == True:
                     expected_value +=  prob * (reward + gamma * 0)
                 else:
@@ -164,6 +173,7 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
        Returns optimal policy, value function, number of policy
        improvement iterations, and number of value iterations.
     """
+    # nS: state number i.e. 16个 （0， 1， 2... 14, 15）
     policy = np.zeros(env.nS, dtype='int')
     value_func = np.zeros(env.nS)
     improve_iteration = 0
@@ -171,6 +181,7 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     policy_stable = False
 
     for i in range(max_iterations):
+        # tol : tolerate容忍值， 最大变化值小于tol被定义为收敛
         value_func, e_iter = evaluate_policy(env, gamma, policy, value_func, max_iterations, tol)
         policy_stable, policy = improve_policy(env, gamma, value_func, policy)
         improve_iteration += 1
