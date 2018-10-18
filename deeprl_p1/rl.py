@@ -44,6 +44,8 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
         # iterate through each state
         # from 0 to 15 overall 16 states
         for s in range(env.nS):
+            # 按照当前policy 给出的动作去走 
+            # 注意 和value iteration 不一样，value iteration 里面先对s循环，在对a循环，说明对应一个s a不确定
             a = policy[s]
             expected_value = 0.0
             # ‘P’: Dynamics，是一个二维字典,第一维度是状态，第二维度是动作，值是对应状态和动作的能到达的下一个状态的四个属性
@@ -110,6 +112,7 @@ def value_function_to_policy(env, gamma, value_function):
     return policy
 
 # polic: Maps states to actions.
+# 传入待提高的policy
 def improve_policy(env, gamma, value_func, policy):
     """Given a policy and value function improve the policy.
 
@@ -186,7 +189,9 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
 
     for i in range(max_iterations):
         # tol : tolerate容忍值， 最大变化值小于tol被定义为收敛
+        # 传入poicy 评估一下这个policy
         value_func, e_iter = evaluate_policy(env, gamma, policy, value_func, max_iterations, tol)
+        # 把评估好的policy 
         policy_stable, policy = improve_policy(env, gamma, value_func, policy)
         improve_iteration += 1
         evalue_iteration += e_iter
@@ -224,9 +229,10 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     iteration_cnt = 0
     # 控制iteration次数
     for i in range(max_iterations):
-        # 记录每一轮的
+        # 记录下每一轮 v-V[s]的最大值，当这个最大值delta 小于threshold的值的时候就认为value function 收敛了
         delta = 0
         #下面就是实现PPT上的伪代码
+        # 下面两轮循环对应伪代码里 maxQ(s,a)
         for s in range(env.nS):
             v = V[s]
             max_value = None
@@ -242,8 +248,8 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
                         expectation += prob * (reward + gamma * V[nextstate])
                 max_value = expectation if max_value is None else max(max_value, expectation)
             V[s] = max_value
-            # 记录每一次最大的变化 用于判断何时收敛
             # V[s] v 都是一个标量 也就是一个数值
+            # v-V[s]相当于对于每一个state都有一个这样的值 max求出对于所有state的最大值 如果这个最大值小于阈值的话 就说明已经收敛了
             delta = max(delta, abs(v - V[s]))
         iteration_cnt += 1
         if delta < tol:
