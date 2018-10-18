@@ -222,26 +222,35 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     """
     V = np.zeros(env.nS)
     iteration_cnt = 0
+    # 控制iteration次数
     for i in range(max_iterations):
+        # 记录每一轮的
         delta = 0
+        #下面就是实现PPT上的伪代码
         for s in range(env.nS):
             v = V[s]
             max_value = None
             for a in range(env.nA):
                 expectation = 0
+                # 当选择一个动作后， 迭代所有可能到达的的下一个状态。由于这里的代码简化了，选择了deterministnice 模型，for 循环只执行一轮
+                # prob 也就是1，nextstate 也就只有1个状态
                 for prob, nextstate, reward, is_terminal in env.P[s][a]:
                     if is_terminal:
+                        # ppt伪代码当中使用了E符号 也就是期望， 展开后开之后就有prob了
                         expectation += prob * (reward + gamma * 0)
                     else:
                         expectation += prob * (reward + gamma * V[nextstate])
                 max_value = expectation if max_value is None else max(max_value, expectation)
             V[s] = max_value
+            # 记录每一次最大的变化 用于判断何时收敛
+            # V[s] v 都是一个标量 也就是一个数值
             delta = max(delta, abs(v - V[s]))
         iteration_cnt += 1
         if delta < tol:
             break
-
+    # 手动把最终状态置为0
     V[env.nS-1] = 0
+    #这里只得到value function, 最终结果还需要 value function to policy 装换
     return V, iteration_cnt
 
 
