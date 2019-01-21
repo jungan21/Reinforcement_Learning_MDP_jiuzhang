@@ -128,6 +128,7 @@ def plot_policy(policy, length):
 
 def cal_value_iteration(env, gamma=0.9):
     value_func, iteration_cnt = value_iteration(env, gamma=gamma)
+    #由于value_iteration仅返回最优的state-value function,所以还要把它mapping 成对应的最优的policy矩阵
     policy = value_function_to_policy(env, gamma, value_func)
     print("Value Iternation:%d" % iteration_cnt)
     print("Show me the policy:")

@@ -7,6 +7,7 @@ import time
 
 def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol=1e-3):
     """Evaluate the value of a policy.
+    给出一个env和policy，计算各个状态的value以及value function收敛的迭代次数
 
     See page 87 (pg 105 pdf) of the Sutton and Barto Second Edition
     book.
@@ -34,6 +35,9 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
     np.ndarray, int
       The value for the given policy and the number of iterations till
       the value function converged.
+      返回值：
+        np.ndarray: numpy数组，存储每个状态对应的value值
+        int: value function收敛所用的迭代次数
     """
     iterations = 0
     v = value_func
@@ -115,6 +119,9 @@ def value_function_to_policy(env, gamma, value_function):
 # 传入待提高的policy
 def improve_policy(env, gamma, value_func, policy):
     """Given a policy and value function improve the policy.
+        给出一个env，policy以及对应value_func，返回新的policy
+
+        policy：策略, np.array, Maps states to actions, policy[s]=a
 
     See page 87 (pg 105 pdf) of the Sutton and Barto Second Edition
     book.
@@ -202,6 +209,7 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
 
 def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     """Runs value iteration for a given gamma and environment.
+        给出一个env，用value_iteration求出policy
 
     See page 90 (pg 108 pdf) of the Sutton and Barto Second Edition
     book.
@@ -229,17 +237,17 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     iteration_cnt = 0
     # 控制iteration次数
     for i in range(max_iterations):
-        # 记录下每一轮 v-V[s]的最大值，当这个最大值delta 小于threshold的值的时候就认为value function 收敛了
+        # 记录下每一轮 v-V[s]的最大值，当这个最大值delta 小于threshold的值的时候就认为value function 收敛了, Q(s,a)也就是最优的了
         delta = 0
-        #下面就是实现PPT上的伪代码
-        # 下面两轮循环对应伪代码里 maxQ(s,a)
-        for s in range(env.nS):
-            v = V[s]
+
+        # 下面就是实现PPT上的伪代码， 下面两轮循环对应伪代码里 maxQ(s,a)
+        for s in range(env.nS): # for each state
+            v = V[s] # copy 一份当前的state-value function 矩阵
             max_value = None
-            for a in range(env.nA):
-                expectation = 0
-                # 当选择一个动作后， 迭代所有可能到达的的下一个状态。由于这里的代码简化了，选择了deterministnice 模型，for 循环只执行一轮
-                # prob 也就是1，nextstate 也就只有1个状态
+            for a in range(env.nA):  # for each state, try all possible actions
+                expectation = 0 # reset for each action
+                # 当选择一个动作后， 迭代所有可能到达的的下一个状态。
+                # 由于这里选择了Deterministic模型(from example.py 的main function)，虽然是for循环，但只执行一轮， prob 也就是1，nextstate 也就只有1个状态
                 for prob, nextstate, reward, is_terminal in env.P[s][a]:
                     if is_terminal:
                         # ppt伪代码当中使用了E符号 也就是期望， 展开后开之后就有prob了
@@ -247,16 +255,17 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
                     else:
                         expectation += prob * (reward + gamma * V[nextstate])
                 max_value = expectation if max_value is None else max(max_value, expectation)
-            V[s] = max_value
+            V[s] = max_value # set this for each s
             # V[s] v 都是一个标量 也就是一个数值
             # v-V[s]相当于对于每一个state都有一个这样的值 max求出对于所有state的最大值 如果这个最大值小于阈值的话 就说明已经收敛了
             delta = max(delta, abs(v - V[s]))
+
+        # outside of s for loop
         iteration_cnt += 1
         if delta < tol:
             break
-    # 手动把最终状态置为0
-    V[env.nS-1] = 0
-    #这里只得到value function, 最终结果还需要 value function to policy 装换
+    V[env.nS-1] = 0 #手动把最终状态置为0
+    # 这里只得到value function, 最终结果还需要 value function to policy 装换从而得到最优的policy矩阵
     return V, iteration_cnt
 
 
