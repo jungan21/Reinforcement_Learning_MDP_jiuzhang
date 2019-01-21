@@ -36,7 +36,7 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
       The value for the given policy and the number of iterations till
       the value function converged.
       返回值：
-        np.ndarray: numpy数组，存储每个状态对应的value值
+        np.ndarray: numpy数组，存储每个状态对应的value值。也就是state-value function矩阵
         int: value function收敛所用的迭代次数
     """
     iterations = 0
@@ -45,22 +45,21 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
     while not eval_converge:
         iterations += 1
         delta = 0
+
         # iterate through each state
-        # from 0 to 15 overall 16 states
-        for s in range(env.nS):
-            # 按照当前policy 给出的动作去走 
-            # 注意 和value iteration 不一样，value iteration 里面先对s循环，在对a循环，说明对应一个s a不确定
+        for s in range(env.nS):  # from 0 to 15 overall 16 states
+            # 按照当前policy 给出的动作去走. Note: 和value iteration 不一样，value iteration 里面先对s循环，在对a循环，说明对应一个s a不确定
             a = policy[s]
             expected_value = 0.0
-            # ‘P’: Dynamics，是一个二维字典,第一维度是状态，第二维度是动作，值是对应状态和动作的能到达的下一个状态的四个属性
-            #(概率, 下一个状态, 奖励, 是否终结状态)，可以到达多个状态, 
-            # 即：P[s][a] = [(prob1, nextstate1, reward1, is_terminal1), (prob2, nextstate2, reward2, is_terminal2)]]
+
+            # ‘P’: Dynamics，是一个二维字典,第一维度是状态，第二维度是动作，值是对应状态和动作的能到达的下一个状态的四个属性 (概率, 下一个状态, 奖励, 是否终结状态)，
+            #  可以到达多个状态, 即：P[s][a] = [(prob1, nextstate1, reward1, is_terminal1), (prob2, nextstate2, reward2, is_terminal2)]]
             # e.g. env.P[0][deeprl_p1.lake_envs.LEFT]表示在状态0，选择往左走, 我们得到返回值：[(1.0, 0, 0.0, False)]，
-            # 数组里只有一组元素，说明对应的下一个状态，到达这个状态的概率是100%，这个状态是0，奖励R(0, LEFT) = 0，不是终结状态。
-            # ??? 转移概率矩阵 P[s][a] 什么时候初始化的？
-            # ？？？为什么 忽略掉 is_terminal == True
+            # 如果是Deterministic，数组里只有一组元素，说明对应的下一个状态，到达这个状态的概率是100%。这个状态是0，奖励R(0, LEFT) = 0，不是终结状态。
+            # ??? 转移概率矩阵 P[s][a] 什么时候初始化的 ？
+            # ??? 为什么 is_terminal == True, 这么计算：expected_value +=  prob * (reward + gamma * 0)
             for prob, nextstate, reward, is_terminal in env.P[s][a]:
-                #根据value function 计算公式，要把可能走的方向的值都累加起来
+                # 根据value function 计算公式，要把可能走的方向的值都累加起来.就是期望
                 if is_terminal == True:
                     expected_value +=  prob * (reward + gamma * 0)
                 else:
@@ -70,6 +69,8 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
             old_v = v[s]
             v[s] = expected_value
             delta = max(delta, abs(v[s] - old_v))
+
+        # outside of the s for loop
         if (delta < tol):
             eval_converge = True
 
@@ -145,8 +146,8 @@ def improve_policy(env, gamma, value_func, policy):
     bool, np.ndarray
       Returns true if policy changed. Also returns the new policy.
     """
-    old_policy = policy
-    new_policy = value_function_to_policy(env, gamma, value_func)
+    old_policy = policy # 待 improve 的policy
+    new_policy = value_function_to_policy(env, gamma, value_func) # 根据evaluate_policy函数返回的最优的value-state function矩阵 generate new policy
 
     policy_stable = True
     for s in range(env.nS):
@@ -184,26 +185,26 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
        Returns optimal policy, value function, number of policy
        improvement iterations, and number of value iterations.
     """
-    # nS: state number i.e. 16个 （0， 1， 2... 14, 15）
-    # 机器人如何根据状态选择一个动作? => 策略(Policy)
-    policy = np.zeros(env.nS, dtype='int')
-    # 机器人如何衡量一个状态的好坏?=>数值(Value function)
-    # 初始化： 方格里面的值 也就是每个value function 都是0
+
+    # 根据伪代码，初始化：state-value function, state policy 两个矩阵
+    #   机器人如何根据状态选择一个动作? => 策略(Policy). 初始化： 方格里面的值 也就是每个state下，的policy
+    #   机器人如何衡量一个状态的好坏?=>数值(Value function). 初始化： 方格里面的值 也就是每个state的value function 都是0
+    policy = np.zeros(env.nS, dtype='int') # nS: state number i.e. 16个 （0， 1， 2... 14, 15）
     value_func = np.zeros(env.nS)
+
     improve_iteration = 0
     evalue_iteration = 0
     policy_stable = False
 
     for i in range(max_iterations):
-        # tol : tolerate容忍值， 最大变化值小于tol被定义为收敛
-        # 传入poicy 评估一下这个policy
-        value_func, e_iter = evaluate_policy(env, gamma, policy, value_func, max_iterations, tol)
-        # 把评估好的policy 
-        policy_stable, policy = improve_policy(env, gamma, value_func, policy)
+        # tol: tolerate容忍值， 最大变化值小于tol被定义为收敛.
+        value_func, e_iter = evaluate_policy(env, gamma, policy, value_func, max_iterations, tol) # 传入policy, 评估一下这个policy, 得到一个新的value_func
+        policy_stable, policy = improve_policy(env, gamma, value_func, policy) # 把评估好的policy, 已经evalut_policy产生的新的state-value function传入
+
         improve_iteration += 1
         evalue_iteration += e_iter
         if policy_stable:
-            break
+            break # stable了就退出循环，否则就继续循环，也就是进入另外一个 evaluate_policy， improve_policy 的cycle
     return policy, value_func, improve_iteration, evalue_iteration
 
 
