@@ -152,6 +152,12 @@ def compare_performance(env, gamma=0.9):
     print("Policy iteration:%d" % improve_iteration)
 
 def main():
+    """
+       env is 离散的environment. (class: DiscreateEnv)
+       Deterministic: 当选择一个方向时， 往该方向走的概率是1
+       Stochastic: 当选择一个方向是， 忘改方向走的概率不一定是1， 有可能滑到其他方向
+
+    """
     env = gym.make('Deterministic-4x4-FrozenLake-v0')
     #env = gym.make('Stochastic-4x4-FrozenLake-v0')
 
