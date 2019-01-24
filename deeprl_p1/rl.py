@@ -41,16 +41,17 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
     """
     iterations = 0
     v = value_func
-    eval_converge = False
-    while not eval_converge:
+
+    for i in range(max_iterations):
         iterations += 1
         delta = 0
+        v_old = v.copy()
 
-        # iterate through each state
+        # iterate each state
         for s in range(env.nS):  # from 0 to 15 overall 16 states
-            # 按照当前policy 给出的动作去走. Note: 和value iteration 不一样，value iteration 里面先对s循环，在对a循环，说明对应一个s a不确定
-            a = policy[s]
-            expected_value = 0.0
+            # evaluate policy 就是按照当前policy 给出的动作去走。 Note: 和value iteration 不一样，value iteration 里面先对s循环，在对a循环，说明对应一个s a不确定
+            a = policy[s]  # 老师PPT里提到了，为了简化实现，这里每个转态下就只有唯一个动作。复杂的情况其实是一个distribution, 有多种可能
+            expection = 0.0
 
             # ‘P’: Dynamics，是一个二维字典,第一维度是状态，第二维度是动作，值是对应状态和动作的能到达的下一个状态的四个属性 (概率, 下一个状态, 奖励, 是否终结状态)，
             #  可以到达多个状态, 即：P[s][a] = [(prob1, nextstate1, reward1, is_terminal1), (prob2, nextstate2, reward2, is_terminal2)]]
@@ -61,22 +62,22 @@ def evaluate_policy(env, gamma, policy, value_func, max_iterations=int(1e3), tol
             for prob, nextstate, reward, is_terminal in env.P[s][a]:
                 # 根据value function 计算公式，要把可能走的方向的值都累加起来.就是期望
                 if is_terminal == True:
-                    expected_value +=  prob * (reward + gamma * 0)
+                    expection += prob * (reward + gamma * 0)
                 else:
-                    expected_value +=  prob * (reward + gamma * v[nextstate])
+                    expection += prob * (reward + gamma * v_old[nextstate]) # Note: here still use existing/old value_function value
 
             # update state value function
-            old_v = v[s]
-            v[s] = expected_value
-            delta = max(delta, abs(v[s] - old_v))
+            v[s] = expection # update value function for the current state
+            delta = max(delta, abs(v[s] - v_old[s]))
 
         # outside of the s for loop
         if (delta < tol):
-            eval_converge = True
+            break
 
     return v, iterations
 
 
+# deprecated, 项目中没有用到
 def value_function_to_policy(env, gamma, value_function):
     """Output action numbers for each state in value_function.
 
@@ -146,14 +147,28 @@ def improve_policy(env, gamma, value_func, policy):
     bool, np.ndarray
       Returns true if policy changed. Also returns the new policy.
     """
-    old_policy = policy # 待 improve 的policy
-    new_policy = value_function_to_policy(env, gamma, value_func) # 根据evaluate_policy函数返回的最优的value-state function矩阵 generate new policy
 
     policy_stable = True
     for s in range(env.nS):
-        if old_policy[s] != new_policy[s]:
+        old_action = policy[s] # note down the old action so that we can check whether policy get changed/udpated at the end of this function
+        max_value = None
+
+        for a in range(env.nA):
+            expection = 0.0 # current state take different actions, then get the max value
+            for prob, nextstate, reward, is_terminal in env.P[s][a]:
+                if is_terminal:
+                    expection +=  prob * (reward + gamma * 0)
+                else:
+                    expection += prob * (reward + gamma * value_func[nextstate]) # 这里不是更新value function,所以就用当前传入进来的的value_function value
+
+            if max_value is None or max_value < expection:
+                max_value = expection
+                policy[s] = a # update policy here i.e. improve policy. Since we find larger Q(s, a) value
+
+        if policy[s] != old_action: # current state's policy get changed -> policy is not stable yet
             policy_stable = False
-    return policy_stable, new_policy
+
+    return policy_stable, policy
 
 
 def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
@@ -198,8 +213,13 @@ def policy_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
 
     for i in range(max_iterations):
         # tol: tolerate容忍值， 最大变化值小于tol被定义为收敛.
-        value_func, e_iter = evaluate_policy(env, gamma, policy, value_func, max_iterations, tol) # 传入policy, 评估一下这个policy, 得到一个新的value_func
-        policy_stable, policy = improve_policy(env, gamma, value_func, policy) # 把评估好的policy, 已经evalut_policy产生的新的state-value function传入
+        # 传入policy, 评估一下这个policy, 得到一个更新后的value_func
+        # e_iter： value function收敛所用的迭代次数
+        value_func, e_iter = evaluate_policy(env, gamma, policy, value_func, max_iterations, tol)
+
+        # 把评估好的policy, 已经evalut_policy产生的新的state-value function传入
+        # return: 新的policy是否稳定了， 新的policy
+        policy_stable, policy = improve_policy(env, gamma, value_func, policy)
 
         improve_iteration += 1
         evalue_iteration += e_iter
@@ -234,40 +254,46 @@ def value_iteration(env, gamma, max_iterations=int(1e3), tol=1e-3):
     np.ndarray, iteration
       The value function and the number of iterations it took to converge.
     """
-    V = np.zeros(env.nS)
-    iteration_cnt = 0
-    # 控制iteration次数
+
+    # based on the 伪代码， randomly intialize below two matrix
+    V = np.zeros(env.nS) # each env's state has a corresponding value (i.e. value function)
+    policy = np.zeros(env.nS, dtype='int') # each env's state has a corresponiding policy (i.e. moving action)
+
+    iteration_cnt = 0 # 控制iteration次数
+
     for i in range(max_iterations):
-        # 记录下每一轮 v-V[s]的最大值，当这个最大值delta 小于threshold的值的时候就认为value function 收敛了, Q(s,a)也就是最优的了
-        delta = 0
+        delta = 0 # 记录下每一轮 (V_old[s]-V[s]) 的最大值，当这个最大值delta < tol的值, 就认为value function 收敛了, Q(s,a)也就是最优的了
+        V_old = V.copy()  # based on the 伪代码， copy 当前的value function
 
         # 下面就是实现PPT上的伪代码， 下面两轮循环对应伪代码里 maxQ(s,a)
         for s in range(env.nS): # for each state
-            v = V[s] # copy 一份当前的state-value function 矩阵
             max_value = None
             for a in range(env.nA):  # for each state, try all possible actions
                 expectation = 0 # reset for each action
-                # 当选择一个动作后， 迭代所有可能到达的的下一个状态。
-                # 由于这里选择了Deterministic模型(from example.py 的main function)，虽然是for循环，但只执行一轮， prob 也就是1，nextstate 也就只有1个状态
+                # 当选择一个动作后， 迭代所有可能到达的的下一个状态. 由于这里选择了Deterministic模型(from example.py 的main function)，虽然是for循环，但只执行一轮， prob 也就是1，nextstate 也就只有1个状态
                 for prob, nextstate, reward, is_terminal in env.P[s][a]:
                     if is_terminal:
-                        # ppt伪代码当中使用了E符号 也就是期望， 展开后开之后就有prob了
-                        expectation += prob * (reward + gamma * 0)
+                        expectation += prob * (reward + gamma * 0)  #ppt伪代码当中使用了E符号 也就是期望， 展开后开之后就有prob了
                     else:
-                        expectation += prob * (reward + gamma * V[nextstate])
-                max_value = expectation if max_value is None else max(max_value, expectation)
-            V[s] = max_value # set this for each s
-            # V[s] v 都是一个标量 也就是一个数值
-            # v-V[s]相当于对于每一个state都有一个这样的值 max求出对于所有state的最大值 如果这个最大值小于阈值的话 就说明已经收敛了
-            delta = max(delta, abs(v - V[s]))
+                        expectation += prob * (reward + gamma * V_old[nextstate]) # Note: old existing value function
+                        # expectation +=  prob * reward + gamma * prob * V[nextstate] 这样表述更match PPT里的伪代码
 
-        # outside of s for loop
+                if max_value is None or max_value < expectation:
+                    max_value = expectation
+                    policy[s] = a  #顺便也跟新了policy
+
+
+            V[s] = max_value # update value function to new value for this state
+            # max求出所有state的value function变化的最大值， 如果这个最大值小于阈值的话 就说明value function已经收敛了, policy也是最优的
+            delta = max(delta, abs(V_old[s] - V[s]))
+
+        # outside of s for loop, in side max_iteration for loop
         iteration_cnt += 1
         if delta < tol:
             break
+
     V[env.nS-1] = 0 #手动把最终状态置为0
-    # 这里只得到value function, 最终结果还需要 value function to policy 装换从而得到最优的policy矩阵
-    return V, iteration_cnt
+    return V, policy, iteration_cnt
 
 
 def print_policy(policy, action_names):
